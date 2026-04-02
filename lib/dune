@@ -1,0 +1,3 @@
+(library
+ (name jigsaw_lib)
+ (modules precompute gf256 lagrange slicer shares))

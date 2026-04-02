@@ -74,3 +74,20 @@ Run the project using Dune:
 ```bash
 dune build && dune exec bin/main.exe
 ```
+
+## File Structure
+
+```text
+jigsaw/
+├── dune-project
+├── bin/
+│   ├── dune
+│   └── main.ml
+└── lib/
+    ├── dune
+    ├── precompute.mli / .ml
+    ├── gf256.mli     / .ml
+    ├── lagrange.mli  / .ml
+    ├── slicer.mli    / .ml
+    └── shares.mli    / .ml
+```

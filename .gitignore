@@ -34,3 +34,9 @@ setup.log
 
 # Local OPAM switch
 _opam/
+
+# Stochastic-Batman's additions
+*.aux
+*.log
+*.synctex.gz
+*.out
