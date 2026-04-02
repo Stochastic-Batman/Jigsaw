@@ -68,8 +68,23 @@ Run the project using Dune:
 dune build && dune exec bin/jigsaw
 ```
 
-or just `./jigsaw` after build.
+or, if the command above does not work for you, try:
 
+```bash
+dune build && dune exec bin/jigsaw.exe
+```
+
+### 5. Usage Example
+
+```bash
+dune exec bin/jigsaw.exe -- --split lorep_ipsum.txt 10 6
+```
+
+and restore it back via (use at least 6 files):
+
+```bash
+dune exec bin/jigsaw.exe -- --join restored.txt lorep_ipsum.txt.share_1 lorep_ipsum.txt.share_3 lorep_ipsum.txt.share_5 lorep_ipsum.txt.share_7 lorep_ipsum.txt.share_9 lorep_ipsum.txt.share_10
+```
 
 ## File Structure
 
@@ -78,7 +93,7 @@ jigsaw/
 ├── dune-project
 ├── bin/
 │   ├── dune
-│   └── main.ml
+│   └── jigsaw.ml
 └── lib/
     ├── dune
     ├── precompute.mli / .ml
