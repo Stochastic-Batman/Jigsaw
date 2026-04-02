@@ -20,13 +20,13 @@ We run a script that generates two tables: a Log Table and an Exponential Table.
 
 **The Workflow:** Our main program checks if these tables exist on your disk. If they don't, it triggers the precomputation logic automatically and saves the results to a file so it never has to do the hard work again.
 
-### 3. Splitting a File (`jigsaw --split`)
+### 3. Splitting a File (`./jigsaw --split`)
 
 When we split your file, we aren't just cutting it into chunks.
 
 For every single byte in your original file, we generate a unique, random "path" (a polynomial curve). We place the "secret" byte at the very start of this path (where the input is zero). We then pick n different points along that path and hand one point to each share file. Because of how these curves work, you need a specific number of points to "trace" the path back to the start.
 
-### 4. Reconstructing a File (`jigsaw --join`)
+### 4. Reconstructing a File (`./jigsaw --join`)
 
 To get your file back, you provide at least k share files.
 
@@ -65,8 +65,11 @@ opam install -y dune
 Run the project using Dune:
 
 ```bash
-dune build && dune exec bin/main.exe
+dune build && dune exec bin/jigsaw
 ```
+
+or just `./jigsaw` after build.
+
 
 ## File Structure
 

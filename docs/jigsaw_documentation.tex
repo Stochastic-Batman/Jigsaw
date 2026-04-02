@@ -96,4 +96,171 @@
 		Because the $k-1$ random coefficients $a_1, \dots, a_{k-1}$ were chosen uniformly and independently from $\mathbb{F}_p$, every polynomial passing through the $k-1$ shares is equally probable. Consequently, the conditional probability distribution of the secret $S$, given the $k-1$ shares, is strictly uniform over $\mathbb{F}_p$. The adversary gains no statistical advantage in guessing $S$.
 	\end{lemma}
 	
+	
+	\section{Implementation over $\mathrm{GF}(2^8)$}
+	
+	The theoretical treatment in Section~3 uses $\mathbb{F}_p$ for a prime $p$.
+	In practice, Jigsaw operates on \emph{files}, which are sequences of bytes.
+	A byte is an integer in $\{0, 1, \dots, 255\}$ - exactly 256 values.
+	The natural field to use is therefore $\mathrm{GF}(2^8)$, the unique finite
+	field of order $2^8 = 256$.  All of Shamir's guarantees carry over
+	unchanged; only the arithmetic rules differ.
+	
+	\subsection{From Integers to Binary Polynomials}
+	
+	Every element of $\mathrm{GF}(2^8)$ is represented as a degree-7
+	polynomial with coefficients in $\mathbb{F}_2 = \{0, 1\}$:
+	$$
+	a_7 x^7 + a_6 x^6 + \cdots + a_1 x + a_0, \qquad a_i \in \{0,1\}.
+	$$
+	The eight bits of a byte are exactly the eight coefficients $a_7, \ldots, a_0$.
+	The byte value $v \in \{0,\dots,255\}$ and the polynomial it encodes are
+	related by:
+	$$
+	v = \sum_{i=0}^{7} a_i \, 2^i.
+	$$
+	
+	\textbf{Example.}  The byte \texttt{0xb2} $= 178 = 10110010_2$ encodes
+	$x^7 + x^5 + x^4 + x$.
+	
+	\subsection{Addition in $\mathrm{GF}(2^8)$: Bitwise XOR}
+	
+	Two elements are added by adding their coefficient polynomials over
+	$\mathbb{F}_2$.  Because $1 + 1 = 0$ in $\mathbb{F}_2$ (no carry), this is
+	precisely a bitwise XOR of the two bytes:
+	$$ a(x) + b(x) = a \oplus b $$
+	Subtraction is identical to addition in characteristic 2, since $-1 = 1$
+	in $\mathbb{F}_2$.
+	
+	\subsection{The Irreducible Polynomial $\mathbf{0x11b}$}
+	
+	Multiplying two degree-7 polynomials can yield a result of degree up to 14,
+	which no longer fits in a byte.  To stay within $\mathrm{GF}(2^8)$ we must
+	\emph{reduce} the result modulo a degree-8 polynomial that is
+	\emph{irreducible} over $\mathbb{F}_2$ - one that has no polynomial factors
+	of lower positive degree (the polynomial analogue of a prime number).
+	
+	Jigsaw uses the polynomial:
+	$$ m(x) = x^8 + x^4 + x^3 + x + 1 $$
+	In binary its coefficients are $1\,0001\,1011$, which is the 9-bit number
+	$\texttt{0x11b} = 283$.  This is the same polynomial used by the
+	\textsc{aes} standard.
+	
+	\subsection{Multiplication in $\mathrm{GF}(2^8)$}
+	
+	Given two bytes $a$ and $b$, their product in $\mathrm{GF}(2^8)$ is:
+	$$
+	a \cdot b = \bigl(a(x)\cdot b(x)\bigr) \bmod m(x),
+	$$
+	where the intermediate polynomial multiplication uses XOR instead of
+	ordinary addition (coefficients are in $\mathbb{F}_2$), and the modular
+	reduction is polynomial long division with XOR.
+	
+	\textbf{Hardware-level view.}
+	A single step of the reduction can be described concretely.  Let $c$ be the
+	current partial result stored in a 9-bit register.  If the degree-8 bit
+	(bit 8) is set, XOR in \texttt{0x11b} to cancel it:
+	\begin{equation}
+		c' = \begin{cases} c \oplus \texttt{0x11b} & c[8] = 1, \\ c & \text{otherwise} \end{cases}
+		\label{eq:reduce}
+	\end{equation}
+	Repeating this after each left-shift step implements the full
+	``multiply-then-reduce'' procedure.
+	
+	\subsection{The Generator $\mathbf{0x03}$ and Discrete Logarithms}
+	
+	The non-zero elements of $\mathrm{GF}(2^8)$ form a multiplicative cyclic
+	group of order 255:
+	$$ \mathrm{GF}(2^8)^* = \bigl\{\, g^0,\, g^1,\, g^2,\, \dots,\, g^{254} \,\bigr\} $$
+	for some \emph{primitive element} (generator) $g$.  A primitive element is
+	one whose successive powers cycle through all 255 non-zero values before
+	returning to 1.
+	
+	Jigsaw uses $g = \texttt{0x03}$, which represents the polynomial $x + 1$.
+	One can verify computationally (and it is a known fact for \texttt{0x11b})
+	that the order of $\texttt{0x03}$ is exactly 255; i.e.,
+	$\texttt{0x03}^{255} = 1$ and $\texttt{0x03}^{d} \ne 1$ for any proper
+	divisor $d$ of 255.  The divisors of 255 are 1, 3, 5, 15, 17, 51, 85, so
+	this requires checking seven conditions, all of which hold.
+	
+	\textbf{Why $g = \texttt{0x03}$?}  It is the smallest byte value (after
+	\texttt{0x01}) that is primitive with respect to \texttt{0x11b}, making it
+	the conventional choice.  Not every non-zero element is primitive:
+	$\texttt{0x02}$ has order 255 only for some irreducible polynomials;
+	$\texttt{0x03}$ is primitive for \texttt{0x11b}.
+	
+	Because $g$ is a generator, every non-zero element $a$ can be written as
+	$a = g^{\log_g a}$.  This defines the \emph{discrete logarithm}
+	$\log_g : \mathrm{GF}(2^8)^* \to \mathbb{Z}_{255}$.
+	
+	\subsection{Precomputed Tables: Turning Multiplication into Addition}
+	
+	Using the discrete logarithm, multiplication of two non-zero elements
+	reduces to addition of integers modulo 255:
+	$$
+	a \cdot b = g^{\,(\log_g a + \log_g b) \bmod 255}.
+	$$
+	For zero we always have $0 \cdot b = 0$.
+	
+	This motivates two lookup tables of size 256 (or 512 for the exponential
+	table, as explained below):
+	
+	\begin{itemize}
+		\item \textbf{Log table} $L$: \quad $L[a] = \log_g a$ for $a \in \{1,\dots,255\}$; $L[0]$ is a sentinel (unused in valid multiplications).
+		\item \textbf{Exp table} $ E[i] = \begin{cases} g^i & i \in \{0,\dots,254\}, \\ g^{i - 255} & i \in \{255,\dots,511\} \end{cases} $
+	\end{itemize}
+	
+	\textbf{Why is the exp table doubled to 512 entries?}
+	When computing $L[a] + L[b]$, the sum can reach up to $254 + 254 = 508$.
+	Rather than computing a modular reduction $(L[a] + L[b]) \bmod 255$ on
+	every multiplication (a branch or integer division), we extend the table to 512 entries.
+	The sum then indexes directly into $E$ without any modular arithmetic:
+	$$ a \cdot b = E[\,L[a] + L[b]\,] \qquad (a, b \ne 0)$$
+	replacing a polynomial reduction by three table lookups and one addition.
+	
+	\subsection{Table Construction Algorithm}
+	
+	The tables are built by iteratively multiplying a running value by the
+	generator using the reduction rule in Equation \eqref{eq:reduce}:
+	
+	\begin{enumerate}
+		\item Initialise $v := 1$ (representing $g^0 = 1$).
+		\item For $i = 0, 1, \dots, 254$:
+		\begin{enumerate}
+			\item Set $E[i] := v$ and $L[v] := i$
+			\item Compute $v := v \ll 1$
+			\item If bit 8 of $v$ is set, set $v := v \oplus \texttt{0x11b}$
+			(reduce modulo $m(x)$)
+		\end{enumerate}
+		\item For $i = 255, \dots, 511$: $E[i] := E[i-255]$
+		\item Set $L[0] := 0$ (guardrail; $\log(0)$ is undefined)
+	\end{enumerate}
+	
+	After construction, $L$ and $E$ satisfy $E[L[a]] = a$ for all $a \ne 0$,
+	confirming they are mutual inverses over the non-zero elements.
+	
+	\subsection{Connecting Back to Shamir's Scheme}
+	
+	With $\mathrm{GF}(2^8)$ arithmetic in hand, the Shamir scheme from
+	Section 3 applies verbatim, with $\mathrm{GF}(2^8)$ substituted for
+	$\mathbb{F}_p$:
+	
+	\begin{itemize}
+		\item The \textbf{secret} $S$ is a single byte $\in \{0,\dots,255\}$.
+		\item The \textbf{polynomial} $P(x) = S + a_1 x + \cdots + a_{k-1}x^{k-1}$
+		has coefficients in $\mathrm{GF}(2^8)$; addition and multiplication
+		use XOR and the table-based field multiplication respectively.
+		\item \textbf{Shares} are pairs $(x_i, P(x_i)) \in \mathrm{GF}(2^8)^2$.
+		Since the field has 255 non-zero elements, $n \le 255$ shares are
+		supported naturally.
+		\item \textbf{Reconstruction} applies Lagrange interpolation over
+		$\mathrm{GF}(2^8)$: all additions become XOR, all divisions use the
+		table-based inverse ($a^{-1} = E[255 - L[a]]$).
+	\end{itemize}
+	
+	A file of length $\ell$ bytes is split by applying this procedure
+	independently to each byte, producing $n$ share files each of length $\ell$.
+	The precomputed tables are computed once, saved to disk, and reused for
+	every subsequent split or join operation.
+	
 \end{document}
