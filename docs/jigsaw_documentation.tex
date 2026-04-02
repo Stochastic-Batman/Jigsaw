@@ -1,0 +1,99 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{concept}{Concept}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+
+\title{Jigsaw \\ \small{A file splitting \& reconstruction utility}}
+\author{Stochastic Batman}
+\date{April 2, 2026}
+
+\begin{document}
+	
+	\maketitle
+	
+	\section{Motivation: The Threshold Problem}
+	Consider a high-stakes scenario where an invaluable secret - such as a proprietary recipe, a cryptographic master key, or a highly confidential file - must be protected. If the secret is stored locally in plaintext, it is vulnerable to a single point of failure via theft. Encrypting the secret with a master key only displaces the problem: who holds the master key? If a single individual holds it, the system is vulnerable to their loss, betrayal, or absence. 
+	
+	If we attempt to solve this by fracturing the key into $n$ literal fragments and distributing them among $n$ participants, we create an overly fragile system. If even one participant is unavailable (e.g., on vacation or lost their fragment), the remaining $n-1$ participants are completely locked out. 
+	
+	What is fundamentally required is a \textit{threshold scheme}. We need a mathematical mechanism to distribute a secret into $n$ shares such that any subset of $k$ shares (where $k \le n$) is completely sufficient to reconstruct the original secret, while any subset of $k-1$ shares yields absolutely zero information about the secret.
+	
+	\section{Intuitive Explanation}
+	To achieve this, we can exploit the geometric properties of polynomials. 
+	
+	Imagine a blank two-dimensional plane. If we place a single point on this plane, there are infinitely many straight lines that can pass through it. However, if we place \textit{two} distinct points, there is exactly one unique straight line that connects them. 
+	
+	We can extend this logic to higher degrees:
+	\begin{itemize}
+		\item 2 points uniquely determine a line (a polynomial of degree 1).
+		\item 3 points uniquely determine a parabola (a polynomial of degree 2).
+		\item In general, $k$ distinct points uniquely determine a polynomial of degree $k-1$.
+	\end{itemize}
+	
+	Shamir's Secret Sharing leverages this exact property. If we want a threshold of $k$ participants to unlock the secret, we generate a random polynomial of degree $k-1$. We mathematically embed our secret as the $y$-intercept of this polynomial (the value of the polynomial when $x = 0$). 
+	
+	We then evaluate this polynomial at $n$ different non-zero $x$-coordinates, generating $n$ distinct points (shares). We distribute one point to each participant. 
+	If $k$ participants pool their points together, they have enough geometric constraints to trace the exact curve back to the $y$-axis, thereby revealing the secret $y$-intercept. If a group only musters $k-1$ points, the curve remains underdetermined; there are infinitely many valid polynomials of degree $k-1$ passing through those $k-1$ points, and consequently, infinitely many possible $y$-intercepts. 
+	
+	To make this practically secure and suited for computers, we perform all of this geometry not over the infinite continuous space of real numbers (which suffers from floating-point rounding errors and leaks partial information like parity), but over a constrained, wrap-around mathematical universe known as a \textit{Finite Field}.
+	
+	\section{Rigorous Mathematics}
+	
+	We formalize the intuitive geometry using the algebraic structures of finite fields and polynomial rings.
+	
+	\subsection{Notation and Preliminary Concepts}
+	Let $p$ be a prime number such that $p > n$ and $p > S$, where $S$ is the secret to be shared. 
+	Let $\mathbb{F}_p$ denote the finite field of order $p$, representing the set of integers modulo $p$. 
+	Let $\mathbb{F}_p[x]$ denote the ring of polynomials in one variable $x$ with coefficients drawn from $\mathbb{F}_p$. 
+	
+	\begin{concept}[Modular Arithmetic and Finite Fields]
+		In $\mathbb{F}_p$, the standard operations of addition, subtraction, and multiplication are performed modulo $p$. Because $p$ is prime, every non-zero element $a \in \mathbb{F}_p$ has a unique multiplicative inverse $a^{-1} \in \mathbb{F}_p$ such that $a \cdot a^{-1} \equiv 1 \pmod p$. This guarantees that division by any non-zero element is well-defined, establishing $\mathbb{F}_p$ as a field.
+	\end{concept}
+	
+	\subsection{Definitions}
+	
+	\begin{definition}[Shamir's $(k, n)$ Secret Sharing Scheme]
+		Given a secret $S \in \mathbb{F}_p$, a threshold $k$, and a total number of shares $n$ (with $k \le n < p$), the scheme proceeds as follows:
+		\begin{enumerate}
+			\item \textbf{Polynomial Generation:} Choose $k-1$ coefficients $a_1, a_2, \dots, a_{k-1}$ uniformly at random from $\mathbb{F}_p$. Define the polynomial $P \in \mathbb{F}_p[x]$ of degree at most $k-1$ as:
+			$$ P(x) = S + a_1 x + a_2 x^2 + \dots + a_{k-1} x^{k-1} $$
+			Note that the secret is embedded as the constant term, such that $P(0) = S$.
+			\item \textbf{Share Distribution:} Generate $n$ distinct shares by evaluating the polynomial at $n$ distinct, non-zero points in $\mathbb{F}_p$. For $i = 1, 2, \dots, n$, the $i$-th share is the tuple $(x_i, y_i)$ where $x_i \neq 0$ and $y_i = P(x_i) \pmod p$.
+		\end{enumerate}
+	\end{definition}
+	
+	\subsection{Theorems and Lemmas (Without Proofs)}
+	
+	To reconstruct the polynomial from $k$ shares, we rely on polynomial interpolation over the finite field.
+	
+	\begin{theorem}[Lagrange Interpolation over $\mathbb{F}_p$]
+		Given a set of $k$ distinct points $D = \{(x_1, y_1), (x_2, y_2), \dots, (x_k, y_k)\}$ where $x_i, y_i \in \mathbb{F}_p$ and $x_i \neq x_j$ for all $i \neq j$, there exists a unique polynomial $P \in \mathbb{F}_p[x]$ of degree at most $k-1$ such that $P(x_i) = y_i$ for all $1 \le i \le k$. 
+		
+		This polynomial can be explicitly constructed using the Lagrange basis polynomials $\ell_j(x)$:
+		$$ P(x) = \sum_{j=1}^{k} y_j \ell_j(x) $$
+		where each basis polynomial is defined as:
+		$$ \ell_j(x) = \prod_{\substack{1 \le m \le k \\ m \neq j}} \frac{x - x_m}{x_j - x_m} \pmod p $$
+	\end{theorem}
+	
+	Since the secret is defined as $P(0)$, participants possessing $k$ shares can bypass reconstructing the full polynomial and directly compute the secret by evaluating the Lagrange interpolation at $x = 0$:
+	$$ S = P(0) = \sum_{j=1}^{k} y_j \prod_{\substack{1 \le m \le k \\ m \neq j}} \frac{-x_m}{x_j - x_m} \pmod p $$
+	
+	Finally, we formalize the assertion that fewer than $k$ shares reveal absolutely zero mathematical information about the underlying secret $S$.
+	
+	\begin{lemma}[Information-Theoretic Security / Perfect Secrecy]
+		Let an adversary possess an arbitrary subset of $k-1$ shares. For any arbitrary candidate secret $S' \in \mathbb{F}_p$, there exists exactly one polynomial $Q \in \mathbb{F}_p[x]$ of degree at most $k-1$ that interpolates the $k-1$ shares \textit{and} the point $(0, S')$. 
+		
+		Because the $k-1$ random coefficients $a_1, \dots, a_{k-1}$ were chosen uniformly and independently from $\mathbb{F}_p$, every polynomial passing through the $k-1$ shares is equally probable. Consequently, the conditional probability distribution of the secret $S$, given the $k-1$ shares, is strictly uniform over $\mathbb{F}_p$. The adversary gains no statistical advantage in guessing $S$.
+	\end{lemma}
+	
+\end{document}
