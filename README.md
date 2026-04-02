@@ -32,13 +32,6 @@ To get your file back, you provide at least k share files.
 
 We read the points from your shares. We use a method called Interpolation to redraw the path that connects those points. Once the path is redrawn, we look at the very beginning of the curve (the starting point) to find the original byte. We do this for every byte until the entire file is reconstructed.
 
-## Project Structure
-
-  * `precompute.ml`: Generates the math lookup tables and saves them to disk.
-  * `brainstorm.ml`: Handles the custom byte-level arithmetic using the precomputed tables.
-  * `slicer.ml`: The logic for generating random paths (splitting) and redrawing them (joining).
-  * `main.ml`: The command-line interface that handles reading your files and saving the shares.
-
 ## Setup Instructions
 
 ### 1. Install OPAM
