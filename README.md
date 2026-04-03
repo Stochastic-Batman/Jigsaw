@@ -77,13 +77,13 @@ dune build && dune exec bin/jigsaw.exe
 ### 5. Usage Example
 
 ```bash
-dune exec bin/jigsaw.exe -- --split lorep_ipsum.txt 10 6
+dune exec bin/jigsaw.exe -- --split lorem_ipsum.txt 10 6
 ```
 
 and restore it back via (use at least 6 files):
 
 ```bash
-dune exec bin/jigsaw.exe -- --join restored.txt lorep_ipsum.txt.share_1 lorep_ipsum.txt.share_3 lorep_ipsum.txt.share_5 lorep_ipsum.txt.share_7 lorep_ipsum.txt.share_9 lorep_ipsum.txt.share_10
+dune exec bin/jigsaw.exe -- --join restored.txt lorem_ipsum.txt.share_1 lorem_ipsum.txt.share_3 lorem_ipsum.txt.share_5 lorem_ipsum.txt.share_7 lorem_ipsum.txt.share_9 lorem_ipsum.txt.share_10
 ```
 
 ## File Structure
