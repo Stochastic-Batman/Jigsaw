@@ -40,5 +40,5 @@ _opam/
 *.log
 *.synctex.gz
 *.out
+*.txt*
 gf256_tables.bin
-lorem_ipsum.txt
